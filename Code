@@ -1,0 +1,115 @@
+/*Team 2 Automated Chicken farm using IoT
+This code will enable one see real-time Temperature, humidity with a time stamp on FireBase cloud service using
+NodeMCU, DHT11, RTC_DS3231. Actuators included are servo motor and LED. Start by including necessary libraries as follows.
+*/
+#include "DHT.h"        // including the library of DHT11 temperature and humidity sensor
+#include <ESP8266WiFi.h>  //including ESP8266 library for WiFi
+#include <FirebaseArduino.h>  //including firebase Library 
+#include <RTClib.h> // including library for RTC_DS3231
+#include <Wire.h> // including library for I2C communication 
+#include <Servo.h> // Include the Servo library
+ 
+
+
+#define DHTTYPE DHT11   //Declaring the type of DHT sensor as DHT 11
+#define dht_dpin 0  //Declaring DHT pin
+#define FIREBASE_HOST "team2-temp.firebaseio.com" //Setting up Firebase host
+#define FIREBASE_AUTH "nUoLU9eTp165NpFD07F3rXAfPp52H2mCIRy5uUqa" //Authentication code for the firebase project
+#define WIFI_SSID "Ookosoft" //WiFI network name NodeMCU will connect to 
+#define WIFI_PASSWORD "87654321" //WiFI password
+
+int servoPin = 5; // Declaring the Servo pin
+
+Servo Servo1; // Create a servo object 
+
+RTC_DS3231 rtc;// Create a RTC object 
+
+char t[32]; //declare an array t of character type to hold time and date
+
+
+DHT dht(dht_dpin, DHTTYPE); // create dht object with arguments dht_pin and DHTTYPE
+
+float hum = dht.readHumidity(); // This will give us humidity readings and assign to hum
+float temp = dht.readTemperature(); // This will give us temperature readings and assign to temp
+
+//  setup code to run once
+void setup(void)
+{ 
+  dht.begin();
+  Serial.begin(9600); // set baudrate for serial communication to 9600
+  
+  Servo1.attach(servoPin);   // We need to attach the servo to the used pin number 
+  // connect to wifi.
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.println("Humidity and temperature Sensor\n\n");
+  Serial.print("connecting");
+  pinMode(6, OUTPUT); // assign pin 6 as an output
+  Wire.begin(); // initiate the wire library
+  rtc.begin(); //initiate reat-time clock 
+  rtc.adjust(DateTime(F(__DATE__),F(__TIME__))); //adjust rtc clock to current date and time
+  //rtc.adjust(DateTime(2020, 2, 24, 5, 42, 0));
+  
+  while (WiFi.status() != WL_CONNECTED) 
+  {
+    Serial.print("."); // To be printed on serial monitor when not connected to the WiFi in the while loop
+    delay(500); //wait for 500ms before printing again
+  }
+  Serial.print("connected: ");
+  Serial.println(WiFi.localIP()); //Print the ip address acquired
+  Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH); //Initiating Firebase Library
+  
+  delay(700);
+  
+
+}
+//  main code to run repeatedly
+void loop() {         
+    //create a for loop to print date and time
+      for(int i=1; i<=10; i++) {
+           DateTime now = rtc.now(); // create object named "now"
+           sprintf(t, "%02d:%02d:%02d %02d/%02d/%02d",  now.hour(), now.minute(), now.second(), now.day(), now.month(), now.year()); // print current time and date
+           //if statement to turn servo motor every 30 minutes
+              if (now.minute()==30) 
+                {
+                  // Serial.println(now.minute);
+                     // Make servo go to 0 degrees 
+                       Servo1.write(0);
+                       delay(500);
+                       // Make servo go to 90 degrees 
+                       Servo1.write(90);                     
+                       delay(500); 
+                       // Make servo go to 180 degrees 
+                       Servo1.write(180); 
+                       delay(500); 
+                      
+                }
+
+             
+           //print temperature (temp), humidity(hum) and time(t) to Serial monitor
+           Serial.print(F("Date/Time: "));
+           Serial.println(t);
+           Serial.println("Current Temperature is:");
+           Serial.println(temp); 
+           Serial.println();
+           Serial.println("Current Humidity is:");
+           Serial.println(hum); 
+           
+           //print temperature (temp), humidity(hum) and time(t) to Firebase
+           Firebase.setFloat("Room Temperature",temp); 
+           Firebase.setFloat("Room Humidity",hum);
+           Firebase.set("Current Time",t); 
+           
+            //if condition to operate LED light according to temperature readings
+            //LED is turned on every second when temperature reading exceeds 28
+            if (temp>28)
+                {
+                  digitalWrite(6, HIGH);   
+                  delay(500);
+                  digitalWrite(6, LOW);     
+                  delay(500);   
+                }
+              
+        
+                   }
+
+}
